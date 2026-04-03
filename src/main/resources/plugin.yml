@@ -1,0 +1,10 @@
+name: NatureSurvival
+main: my.pkg.MyPlugin
+version: 0.0.1
+api-version: '1.21'
+
+commands:
+  naturesurvival:
+    description: 원소 서바이벌 게임 시작
+    usage: /naturesurvival <start|pick>
+    aliases: [ns, NatureSurviaval]
