@@ -22,7 +22,6 @@ public final class MyPlugin extends JavaPlugin {
         abilitySystem.registerAbility(new MetalAbility(this));
 
         getServer().getPluginManager().registerEvents(abilitySystem, this);
-        getServer().getPluginManager().registerEvents(new WaterLockListener(this, abilitySystem), this);
         getServer().getPluginManager().registerEvents(new LightArmorListener(abilitySystem), this);
         getServer().getPluginManager().registerEvents(new MetalLockListener(this, abilitySystem), this);
         getServer().getPluginManager().registerEvents(new MetalKeepInventoryListener(this, abilitySystem), this);

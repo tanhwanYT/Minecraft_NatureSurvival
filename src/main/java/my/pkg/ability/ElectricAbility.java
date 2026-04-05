@@ -4,8 +4,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -17,7 +15,9 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -30,6 +30,8 @@ public class ElectricAbility implements Ability {
 
     // 물 대미지 쿨타임
     private final Map<UUID, Long> lastWaterDamageTime = new HashMap<>();
+
+    private final Set<UUID> chainDamageVictims = new HashSet<>();
 
     // 설정값
     private static final double CHAIN_DAMAGE = 3.0;           // 1.5칸
@@ -75,27 +77,36 @@ public class ElectricAbility implements Ability {
     public void onAttack(Player player, EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof LivingEntity mainTarget)) return;
 
+        // 추가: 이미 연쇄 피해로 들어온 이벤트면 다시 연쇄 발동 금지
+        if (chainDamageVictims.contains(mainTarget.getUniqueId())) {
+            return;
+        }
+
         long now = System.currentTimeMillis();
         lastCombatTime.put(player.getUniqueId(), now);
 
         Location center = mainTarget.getLocation().add(0, 1.0, 0);
 
-        // 메인 타겟 제외, 공격자 제외, 주변 생명체에 연쇄 피해
         for (Entity entity : mainTarget.getNearbyEntities(CHAIN_RADIUS, CHAIN_RADIUS, CHAIN_RADIUS)) {
             if (!(entity instanceof LivingEntity nearby)) continue;
             if (nearby.equals(mainTarget)) continue;
             if (nearby.equals(player)) continue;
             if (nearby.isDead()) continue;
 
-            nearby.damage(CHAIN_DAMAGE, player);
+            UUID victimId = nearby.getUniqueId();
 
-            // 전기 이펙트
+            try {
+                chainDamageVictims.add(victimId);
+                nearby.damage(CHAIN_DAMAGE, player);
+            } finally {
+                chainDamageVictims.remove(victimId);
+            }
+
             Location loc = nearby.getLocation().add(0, 1.0, 0);
             nearby.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, loc, 18, 0.25, 0.35, 0.25, 0.02);
             nearby.getWorld().spawnParticle(Particle.CRIT, loc, 6, 0.2, 0.2, 0.2, 0.01);
         }
 
-        // 메인 타겟에도 약간의 전기 연출
         mainTarget.getWorld().spawnParticle(Particle.ELECTRIC_SPARK, center, 22, 0.3, 0.4, 0.3, 0.03);
         mainTarget.getWorld().playSound(center, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.35f, 1.7f);
     }
@@ -104,6 +115,7 @@ public class ElectricAbility implements Ability {
     public void onDamaged(Player player, EntityDamageEvent event) {
         lastCombatTime.put(player.getUniqueId(), System.currentTimeMillis());
     }
+
 
     private void applyPassiveBuffs(Player player) {
         player.addPotionEffect(new PotionEffect(
