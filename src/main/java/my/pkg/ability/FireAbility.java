@@ -14,6 +14,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.util.Vector;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +32,11 @@ public class FireAbility implements Ability {
     private static final double WATER_DAMAGE = 4.0; // 2칸
     private static final long WATER_DAMAGE_COOLDOWN_MS = 1000L; // 1초
     private static final double FOOD_BURN_CHANCE = 0.15; // 15%
+
+    // 용암 이동 보정값
+    private static final double LAVA_SWIM_SPEED = 0.38;
+    private static final double LAVA_UP_SPEED = 0.18;
+    private static final double LAVA_DOWN_LIMIT = -0.08;
 
     public FireAbility(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -55,7 +61,7 @@ public class FireAbility implements Ability {
     public void onTick(Player player) {
         applyPassiveEffects(player);
         handleWaterPenalty(player);
-        handleLavaSpeed(player);
+        handleLavaMovement(player);
     }
 
     @Override
@@ -69,7 +75,7 @@ public class FireAbility implements Ability {
     @Override
     public void onMove(Player player, PlayerMoveEvent event) {
         // 이동할 때도 용암 가속 체크
-        handleLavaSpeed(player);
+        handleLavaMovement(player);
     }
 
     @Override
@@ -114,14 +120,38 @@ public class FireAbility implements Ability {
         ));
     }
 
-    private void handleLavaSpeed(Player player) {
-        if (isTouchingLava(player)) {
-            player.addPotionEffect(new PotionEffect(
-                    PotionEffectType.SPEED,
-                    40, 1, false, false, false
-            ));
+    private void handleLavaMovement(Player player) {
+        if (!isTouchingLava(player)) return;
+        if (player.isFlying()) return;
+        if (player.isInsideVehicle()) return;
+
+        Vector current = player.getVelocity();
+        Vector direction = player.getLocation().getDirection().clone();
+
+        // 바라보는 방향 기준 수평 이동
+        direction.setY(0);
+        if (direction.lengthSquared() > 0.0001) {
+            direction.normalize().multiply(LAVA_SWIM_SPEED);
         }
+
+        double y = current.getY();
+
+        // 점프 중이면 약간 더 뜨게
+        if (player.isJumping()) {
+            y = Math.max(y, LAVA_UP_SPEED);
+        } else if (y < LAVA_DOWN_LIMIT) {
+            y = LAVA_DOWN_LIMIT;
+        }
+
+        Vector result = new Vector(direction.getX(), y, direction.getZ());
+
+        // 가만히 있을 땐 너무 끌려가지 않게
+        if (player.getLocation().getDirection().lengthSquared() < 0.0001) return;
+
+        player.setVelocity(result);
+        player.setFallDistance(0f);
     }
+
 
     private void handleWaterPenalty(Player player) {
         if (!isTouchingWater(player)) return;

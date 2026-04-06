@@ -1,6 +1,8 @@
 package my.pkg.ability;
 
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -14,8 +16,10 @@ public class WaterAbility implements Ability {
     private final JavaPlugin plugin;
 
     private static final int MAX_AIR = 300;
-    private static final int AIR_RECOVER_IN_WATER = 60;   // 물속에서 1초당 회복량
-    private static final int AIR_LOSS_OUTSIDE = 20;       // 물밖에서 1초당 감소량
+    private static final int AIR_RECOVER_IN_WATER = 60;
+    private static final int AIR_LOSS_OUTSIDE = 20;
+
+    private static final double SUBMERGED_MINING_SPEED = 5.0;
 
     public WaterAbility(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -35,6 +39,7 @@ public class WaterAbility implements Ability {
     @Override
     public void onRemove(Player player) {
         clearWaterOnlyBuffs(player);
+        resetSubmergedMiningSpeed(player);
         player.setRemainingAir(player.getMaximumAir());
     }
 
@@ -48,31 +53,19 @@ public class WaterAbility implements Ability {
         applyState(player);
     }
 
-    @Override
-    public void onBreakBlock(Player player, BlockBreakEvent event) {
-        if (!isInWater(player)) return;
-
-        player.addPotionEffect(new PotionEffect(
-                PotionEffectType.HASTE,
-                40,
-                1,
-                false,
-                false,
-                false
-        ));
-    }
-
     private void applyState(Player player) {
         boolean inWater = isInWater(player);
 
         if (inWater) {
             applyWaterBuffs(player);
+            applySubmergedMiningSpeed(player);
 
             int nextAir = Math.min(player.getMaximumAir(), player.getRemainingAir() + AIR_RECOVER_IN_WATER);
             player.setRemainingAir(nextAir);
             player.sendActionBar("§b[물] 물속에서 호흡 중");
         } else {
             clearWaterOnlyBuffs(player);
+            resetSubmergedMiningSpeed(player);
 
             int nextAir = player.getRemainingAir() - AIR_LOSS_OUTSIDE;
             player.setRemainingAir(Math.max(-20, nextAir));
@@ -83,48 +76,46 @@ public class WaterAbility implements Ability {
     private void applyWaterBuffs(Player player) {
         player.addPotionEffect(new PotionEffect(
                 PotionEffectType.WATER_BREATHING,
-                40,
-                0,
-                false,
-                false,
-                false
+                40, 0, false, false, false
         ));
 
         player.addPotionEffect(new PotionEffect(
                 PotionEffectType.DOLPHINS_GRACE,
-                40,
-                0,
-                false,
-                false,
-                false
+                40, 0, false, false, false
         ));
 
         player.addPotionEffect(new PotionEffect(
                 PotionEffectType.STRENGTH,
-                40,
-                0,
-                false,
-                false,
-                false
+                40, 0, false, false, false
         ));
 
         player.addPotionEffect(new PotionEffect(
                 PotionEffectType.RESISTANCE,
-                40,
-                0,
-                false,
-                false,
-                false
+                40, 0, false, false, false
         ));
 
         player.addPotionEffect(new PotionEffect(
-                PotionEffectType.HASTE,
-                40,
-                1,
-                false,
-                false,
-                false
+                PotionEffectType.CONDUIT_POWER,
+                40, 0, false, false, false
         ));
+    }
+
+    private void applySubmergedMiningSpeed(Player player) {
+        AttributeInstance attr = player.getAttribute(Attribute.SUBMERGED_MINING_SPEED);
+        if (attr == null) return;
+
+        if (Math.abs(attr.getBaseValue() - SUBMERGED_MINING_SPEED) > 0.0001) {
+            attr.setBaseValue(SUBMERGED_MINING_SPEED);
+        }
+    }
+
+    private void resetSubmergedMiningSpeed(Player player) {
+        AttributeInstance attr = player.getAttribute(Attribute.SUBMERGED_MINING_SPEED);
+        if (attr == null) return;
+
+        if (Math.abs(attr.getBaseValue() - 1.0) > 0.0001) {
+            attr.setBaseValue(1.0);
+        }
     }
 
     private void clearWaterOnlyBuffs(Player player) {
@@ -133,6 +124,7 @@ public class WaterAbility implements Ability {
         player.removePotionEffect(PotionEffectType.STRENGTH);
         player.removePotionEffect(PotionEffectType.RESISTANCE);
         player.removePotionEffect(PotionEffectType.HASTE);
+        player.removePotionEffect(PotionEffectType.CONDUIT_POWER); // 추가
     }
 
     private boolean isInWater(Player player) {

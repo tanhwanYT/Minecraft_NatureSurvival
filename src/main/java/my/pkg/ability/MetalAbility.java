@@ -214,7 +214,7 @@ public class MetalAbility implements Ability {
     }
 
     public void ensureLockedSlots(Player player) {
-        for (int slot = 28; slot <= 35; slot++) {
+        for (int slot = 27; slot <= 35; slot++) {
             ItemStack item = player.getInventory().getItem(slot);
             if (!isLockedSlotItem(item)) {
                 player.getInventory().setItem(slot, createLockedSlotItem());

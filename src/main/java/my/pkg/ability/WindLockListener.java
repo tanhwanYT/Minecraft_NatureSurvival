@@ -16,19 +16,19 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public class WaterLockListener implements Listener {
+public class WindLockListener implements Listener {
 
     private final JavaPlugin plugin;
     private final AbilitySystem abilitySystem;
 
-    public WaterLockListener(JavaPlugin plugin, AbilitySystem abilitySystem) {
+    public WindLockListener(JavaPlugin plugin, AbilitySystem abilitySystem) {
         this.plugin = plugin;
         this.abilitySystem = abilitySystem;
     }
 
-    private WaterAbility getWaterAbility(Player player) {
-        if (abilitySystem.getAbility(player) instanceof WaterAbility waterAbility) {
-            return waterAbility;
+    private WindAbility getWindAbility(Player player) {
+        if (abilitySystem.getAbility(player) instanceof WindAbility windAbility) {
+            return windAbility;
         }
         return null;
     }
@@ -37,13 +37,12 @@ public class WaterLockListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
-        WaterAbility water = getWaterAbility(player);
-        if (water == null) return;
+        WindAbility wind = getWindAbility(player);
+        if (wind == null) return;
 
-        // 플레이어 인벤토리의 30~35 슬롯 직접 클릭 금지
         if (event.getClickedInventory() instanceof PlayerInventory) {
             int slot = event.getSlot();
-            if (slot >= 30 && slot <= 35) {
+            if (slot >= 27 && slot <= 35) {
                 event.setCancelled(true);
                 return;
             }
@@ -52,17 +51,15 @@ public class WaterLockListener implements Listener {
         ItemStack current = event.getCurrentItem();
         ItemStack cursor = event.getCursor();
 
-        // 잠금 유리 자체 조작 금지
-        if (water.isLockedSlotItem(current) || water.isLockedSlotItem(cursor)) {
+        if (wind.isLockedSlotItem(current) || wind.isLockedSlotItem(cursor)) {
             event.setCancelled(true);
             return;
         }
 
-        // 숫자키 스왑 방지
         if (event.getClick().isKeyboardClick()
                 && event.getClickedInventory() instanceof PlayerInventory) {
             int slot = event.getSlot();
-            if (slot >= 30 && slot <= 35) {
+            if (slot >= 27 && slot <= 35) {
                 event.setCancelled(true);
             }
         }
@@ -72,12 +69,11 @@ public class WaterLockListener implements Listener {
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
-        WaterAbility water = getWaterAbility(player);
-        if (water == null) return;
+        WindAbility wind = getWindAbility(player);
+        if (wind == null) return;
 
         for (int slot : event.getRawSlots()) {
-            // 플레이어 인벤토리 30~35칸 막기
-            if (slot >= 30 && slot <= 35) {
+            if (slot >= 27 && slot <= 35) {
                 event.setCancelled(true);
                 return;
             }
@@ -88,10 +84,10 @@ public class WaterLockListener implements Listener {
     public void onDrop(PlayerDropItemEvent event) {
         Player player = event.getPlayer();
 
-        WaterAbility water = getWaterAbility(player);
-        if (water == null) return;
+        WindAbility wind = getWindAbility(player);
+        if (wind == null) return;
 
-        if (water.isLockedSlotItem(event.getItemDrop().getItemStack())) {
+        if (wind.isLockedSlotItem(event.getItemDrop().getItemStack())) {
             event.setCancelled(true);
         }
     }
@@ -100,16 +96,14 @@ public class WaterLockListener implements Listener {
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
 
-        WaterAbility water = getWaterAbility(player);
-        if (water == null) return;
+        WindAbility wind = getWindAbility(player);
+        if (wind == null) return;
 
         PlayerInventory inv = player.getInventory();
-
-        // 잠금 슬롯에 아이템이 들어갈 여지 없게 보정
-        for (int slot = 30; slot <= 35; slot++) {
+        for (int slot = 27; slot <= 35; slot++) {
             ItemStack item = inv.getItem(slot);
-            if (!water.isLockedSlotItem(item)) {
-                inv.setItem(slot, water.createLockedSlotItem());
+            if (!wind.isLockedSlotItem(item)) {
+                inv.setItem(slot, wind.createLockedSlotItem());
             }
         }
     }
@@ -118,21 +112,21 @@ public class WaterLockListener implements Listener {
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
 
-        WaterAbility water = getWaterAbility(player);
-        if (water == null) return;
+        WindAbility wind = getWindAbility(player);
+        if (wind == null) return;
 
-        event.getDrops().removeIf(water::isLockedSlotItem);
+        event.getDrops().removeIf(wind::isLockedSlotItem);
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
 
-        WaterAbility water = getWaterAbility(player);
-        if (water == null) return;
+        WindAbility wind = getWindAbility(player);
+        if (wind == null) return;
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            WaterAbility again = getWaterAbility(player);
+            WindAbility again = getWindAbility(player);
             if (again != null) {
                 again.applyLockedSlots(player);
             }

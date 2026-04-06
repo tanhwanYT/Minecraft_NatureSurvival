@@ -1,38 +1,44 @@
 package my.pkg.ability;
 
 import org.bukkit.GameMode;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 public class WindAbility implements Ability {
 
     private final JavaPlugin plugin;
+    private final NamespacedKey lockedSlotKey;
 
-    // 쉬프트 시작 시간
     private final Map<UUID, Long> sneakStartTime = new HashMap<>();
-
-    // 충전 완료 상태
     private final Map<UUID, Boolean> chargedState = new HashMap<>();
 
     private static final double DEFAULT_MAX_HEALTH = 20.0;
-    private static final double WIND_MAX_HEALTH = 16.0; // 2칸 감소
+    private static final double WIND_MAX_HEALTH = 16.0;
 
-    private static final long FLY_CHARGE_MS = 3000L;   // 3초 충전
-    private static final double FLY_UP_POWER = 1.2;    // 수직 발사 세기
+    private static final long FLY_CHARGE_MS = 3000L;
+    private static final double FLY_UP_POWER = 1.2;
 
     public WindAbility(JavaPlugin plugin) {
         this.plugin = plugin;
+        this.lockedSlotKey = new NamespacedKey(plugin, "wind_locked_slot");
     }
 
     @Override
@@ -44,11 +50,13 @@ public class WindAbility implements Ability {
     public void onGrant(Player player) {
         applyMaxHealthPenalty(player);
         applyPassiveBuff(player);
+        applyLockedSlots(player);
     }
 
     @Override
     public void onRemove(Player player) {
         resetMaxHealth(player);
+        clearLockedSlots(player);
         sneakStartTime.remove(player.getUniqueId());
         chargedState.remove(player.getUniqueId());
     }
@@ -57,6 +65,7 @@ public class WindAbility implements Ability {
     public void onTick(Player player) {
         applyPassiveBuff(player);
         updateChargeBar(player);
+        ensureLockedSlots(player);
     }
 
     @Override
@@ -79,7 +88,6 @@ public class WindAbility implements Ability {
             return;
         }
 
-        // 쉬프트를 뗄 때
         Long start = sneakStartTime.get(uuid);
         boolean charged = chargedState.getOrDefault(uuid, false);
 
@@ -168,11 +176,7 @@ public class WindAbility implements Ability {
 
         StringBuilder gauge = new StringBuilder("§f[바람] §7충전: ");
         for (int i = 0; i < 10; i++) {
-            if (i < bars) {
-                gauge.append("§b■");
-            } else {
-                gauge.append("§7■");
-            }
+            gauge.append(i < bars ? "§b■" : "§7■");
         }
 
         int percent = (int) (progress * 100);
@@ -183,12 +187,8 @@ public class WindAbility implements Ability {
 
     private void launchUp(Player player) {
         Vector current = player.getVelocity();
-
-        // X, Z는 유지하거나 0으로 만들 수 있는데
-        // "위로만" 원하면 완전히 0으로 고정
         Vector launch = new Vector(0, FLY_UP_POWER, 0);
 
-        // 기존 아래로 떨어지는 속도는 제거
         if (current.getY() > 0) {
             launch.setY(Math.max(FLY_UP_POWER, current.getY()));
         }
@@ -198,5 +198,61 @@ public class WindAbility implements Ability {
 
         player.sendMessage("§b[바람] 상승 기류를 타고 날아올랐습니다!");
         player.sendActionBar("§b[바람] 상승!");
+    }
+
+    public void applyLockedSlots(Player player) {
+        for (int slot = 27; slot <= 35; slot++) {
+            ItemStack current = player.getInventory().getItem(slot);
+            if (!isLockedSlotItem(current)) {
+                player.getInventory().setItem(slot, createLockedSlotItem());
+            }
+        }
+        player.updateInventory();
+    }
+
+    public void clearLockedSlots(Player player) {
+        for (int slot = 27; slot <= 35; slot++) {
+            ItemStack item = player.getInventory().getItem(slot);
+            if (isLockedSlotItem(item)) {
+                player.getInventory().setItem(slot, null);
+            }
+        }
+        player.updateInventory();
+    }
+
+    public void ensureLockedSlots(Player player) {
+        for (int slot = 27; slot <= 35; slot++) {
+            ItemStack item = player.getInventory().getItem(slot);
+            if (!isLockedSlotItem(item)) {
+                player.getInventory().setItem(slot, createLockedSlotItem());
+            }
+        }
+    }
+
+    public boolean isLockedSlotItem(ItemStack item) {
+        if (item == null || item.getType() != Material.LIGHT_BLUE_STAINED_GLASS_PANE) return false;
+        if (!item.hasItemMeta()) return false;
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+
+        PersistentDataContainer pdc = meta.getPersistentDataContainer();
+        Byte value = pdc.get(lockedSlotKey, PersistentDataType.BYTE);
+        return value != null && value == (byte) 1;
+    }
+
+    public ItemStack createLockedSlotItem() {
+        ItemStack item = new ItemStack(Material.LIGHT_BLUE_STAINED_GLASS_PANE);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.setDisplayName("§b가벼워진 수납칸");
+            meta.setLore(List.of(
+                    "§7바람 원소의 페널티로",
+                    "§79칸을 사용할 수 없습니다."
+            ));
+            meta.getPersistentDataContainer().set(lockedSlotKey, PersistentDataType.BYTE, (byte) 1);
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 }

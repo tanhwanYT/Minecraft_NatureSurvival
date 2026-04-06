@@ -18,6 +18,7 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.event.player.PlayerJoinEvent;
 
 import java.util.*;
 
@@ -120,17 +121,18 @@ public class NatureSurvivalManager implements Listener, CommandExecutor {
                 "§7- 물속 채굴 패널티 제거",
                 "§c[단점]",
                 "§7- 물 밖에서 이동속도 감소",
-                "§7- 인벤토리 6칸 감소"
+                "§7- 물 밖에서 숨을 쉴수 없음, 물 안 속에서는 호흡게이지가 달지 않음"
         ));
 
         setElementItem(inv, 12, "바람", Material.FEATHER, List.of(
                 "§a[장점]",
                 "§7- 낙하대미지 제거",
                 "§7- 신속 버프",
-                "§7- 쉬프트 유지 시 비행 추진",
+                "§7- 쉬프트를 눌러 비행 추진",
                 "§7- 아이템 흡수 범위 증가",
                 "§c[단점]",
-                "§7- 최대체력 2칸 감소"
+                "§7- 최대체력 2칸 감소",
+                "§7- 인벤토리 9칸 감소"
         ));
 
         setElementItem(inv, 13, "대지", Material.GRASS_BLOCK, List.of(
@@ -173,11 +175,26 @@ public class NatureSurvivalManager implements Listener, CommandExecutor {
                 "§7- 화염 대미지 감소",
                 "§c[단점]",
                 "§7- 이동속도 감소",
-                "§7- 인벤토리 8칸 감소"
+                "§7- 인벤토리 9칸 감소"
         ));
 
         markTakenElements(inv);
         player.openInventory(inv);
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            if (selectedElements.containsKey(player.getUniqueId())) return;
+            if (abilitySystem.hasAbility(player)) return;
+
+            openSelectionGui(player);
+            player.sendMessage("§e사용할 원소를 선택하세요.");
+            refreshAllSelectionGuis();
+        }, 20L);
     }
 
     private void setElementItem(Inventory inv, int slot, String elementName, Material material, List<String> lore) {
